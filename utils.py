@@ -2,11 +2,7 @@ import h5py as h5
 import unyt
 from scipy import spatial
 import numpy as np
-import yt
-from yt.funcs import get_pbar
-from swiftsimio.visualisation.smoothing_length_generation import generate_smoothing_lengths
-from swiftsimio import mask
-from swiftsimio import load
+from tqdm import tqdm
 
 def snapshot(z, data_path, catalogue, res):
     start = 0
@@ -39,12 +35,6 @@ def snapshot(z, data_path, catalogue, res):
         #snaps divided as z = 0.95 and 1.05 etc...
         print(redshift)
         
-        '''
-        #no z= 1.0 entry for 3600 box
-        if (z == 1) and (res == '3600'):
-            if round(float(redshift),1) == z:
-                return i
-        '''
         if round(float(redshift),2) == z:
             return i
 
@@ -52,7 +42,7 @@ def snapshot(z, data_path, catalogue, res):
 
 def data_bin(data2, data1, bin_num, stats):
     #sort and bin data in terms of other data set
-    #e.g bin mass data (data2) in terms of mag gap (data1)
+    #e.g bin mag gap (data1) in terms of mass (data2)
 
     array = tuple(zip(data2, data1)) 
     #sorting the tuple in order of data2 values                                                                                                                                                     
@@ -64,16 +54,16 @@ def data_bin(data2, data1, bin_num, stats):
                                                                                                                                                                                                                                                            
     bins = np.linspace(np.min(d2_list), np.max(d2_list), bin_num)
     n,_=np.histogram(d2_list,bins=bins)
-    
+    print(n)
     median = []
     bin_item = []
     boot_low = []
     boot_high = []
     perc_16 = []
     perc_84 = []
-    pbar = yt.get_pbar('Binning data data', len(n))
+    pbar = tqdm(total = len(n))
     for i in range(len(n)):
-        pbar.update(i)
+        pbar.update(1)
         section = list(np.array(d1_list[0:n[i]]).flatten())
         #m = list(np.array(m_copy[0:n[i]]).flatten())                                                                                                                                                                                                                        
         median.append(np.median(section))
@@ -88,10 +78,10 @@ def data_bin(data2, data1, bin_num, stats):
         del d1_list[0:n[i]]
 
     if stats == False:
-        return median, d2_list, bin_item
+        return median, d2_list, bins
 
 
-def paths(res, z, group_path, catalogue, run, size, mass, type_, return_ds = False):    
+def paths(res, z, group_path, catalogue, size, run):    
     #gets paths for SOAP data and ds for mag_gap/acc data
     box = size + res
     data_path = group_path + box + "/" + run
@@ -103,27 +93,8 @@ def paths(res, z, group_path, catalogue, run, size, mass, type_, return_ds = Fal
     snapshot_name = "/flamingo_" + str(snapshot_ID).zfill(4)
     snapshot_path = data_path + "/snapshots" + snapshot_name + snapshot_name + ".hdf5"
     
-    if return_ds == False:
-         return catalogue_path, snapshot_path
-    else:
-        #type: acc or mag
-        #mass: 200m or 500c
-        if res == '5040':
-            min_mass = '1e14'
-        else:
-            min_mass = '1e13'
-
-        if (res == '1800') or (res == '5040') :
-            filename = 'm9_' + type_ + '_' + mass + '_z' + str(z) + '_' + min_mass + '_50kpc.h5' 
-            ds = yt.load("/cosma8/data/dp004/dc-corr2/magnitude_gap/saved_data/" + size + '/' + res + "/" + filename)
-        else:                         
-            if z == 1:
-                z = 0.95
-            filename = 'm8_' + type_ + '_' + mass + '_z' + str(z) + '_'+ min_mass + '_50kpc.h5'
-            ds = yt.load("/cosma8/data/dp004/dc-corr2/magnitude_gap/saved_data/" + size + '/' + res + "/" + filename)
+    return catalogue_path, snapshot_path
     
-        return catalogue_path, snapshot_path, ds
-
 def check_bounds(host_cop, sub_cop,box):
 
     for i, di in enumerate(sub_cop):
@@ -146,7 +117,7 @@ def region(cent, pos_list, z, radius, box):
     return np.where(r_sqrd < (R)**2)[0]
 
 
-def locate_gals(cc, idx_cluster, z, box):
+def locate_gals(cc, idx_cluster, z, box, radius):
     halo_id = cc.VR_ID[idx_cluster]
 
     print(cc.CoP[idx_cluster])
@@ -158,12 +129,59 @@ def locate_gals(cc, idx_cluster, z, box):
     sub_CoP = cc.CoP[cc.host_ID == halo_id]
     #sub_star_mass = cc.stellar_mass[cc.host_ID == halo_id]
     #sub_mass = cc.bound_subhalo_mass[cc.host_ID == halo_id]
-     
-
-    sub_ids = sub_VRs[region(cc.CoP[idx_cluster], sub_CoP, z, cc.R500c[idx_cluster], box)]
-    lums = sub_lums[region(cc.CoP[idx_cluster], sub_CoP, z, cc.R500c[idx_cluster], box)]
-    sub_pos = sub_CoP[region(cc.CoP[idx_cluster], sub_CoP, z, cc.R500c[idx_cluster], box)]
+    
+    if radius == '500c':
+        sub_ids = sub_VRs[region(cc.CoP[idx_cluster], sub_CoP, z, cc.R500c[idx_cluster], box)]
+        lums = sub_lums[region(cc.CoP[idx_cluster], sub_CoP, z, cc.R500c[idx_cluster], box)]
+        sub_pos = sub_CoP[region(cc.CoP[idx_cluster], sub_CoP, z, cc.R500c[idx_cluster], box)]
     #star_mass =  sub_star_mass[region(cc.CoP[idx_cluster], sub_CoP, z, cc.R200c[idx_cluster])]
     #tot_mass = sub_mass[region(cc.CoP[idx_cluster], sub_CoP, z, cc.R200c[idx_cluster])]
-                                         
+    elif radius == '200m':
+        sub_ids = sub_VRs[region(cc.CoP[idx_cluster], sub_CoP, z, cc.R200m[idx_cluster], box)]
+        lums = sub_lums[region(cc.CoP[idx_cluster], sub_CoP, z, cc.R200m[idx_cluster], box)]
+        sub_pos = sub_CoP[region(cc.CoP[idx_cluster], sub_CoP, z, cc.R200m[idx_cluster], box)]
     return sub_ids, lums, sub_pos
+
+#-------- dynamic quants ------------#
+def centroid_shift(dis_from_cent=0, pixel_x=None, pixel_y=None,no_pixels=0, cc=None, _id_map_tuple_=None):
+    _id = _id_map_tuple_[0]
+    map_ = _id_map_tuple_[1]
+    EM = 10**map_
+    EM_flat = EM.flatten()
+    #convert shift to Mpc                                                                                                                                    
+    idx = int(float(_id)-1)
+    pixel_length = (2 * cc.R500c[idx]) / no_pixels
+    #for a number of increasing apertures find the centroid                                                                                                 
+    N_ap = 8
+    #take the mean of this                                                                                                                                  
+    aperture_radii = np.linspace(0.15, 1, N_ap) * cc.R500c[idx]
+    centroid_change = np.zeros(N_ap)
+    centroid_x = np.zeros(N_ap)
+    centroid_y = np.zeros(N_ap)
+    for i in range(N_ap):
+        subset = np.where(dis_from_cent * pixel_length < aperture_radii[i])[0]
+        centroid_x[i] = np.nansum(EM_flat[subset] * pixel_x[subset] * pixel_length) / np.nansum(EM_flat[subset])
+        centroid_y[i] = np.nansum(EM_flat[subset] * pixel_y[subset] * pixel_length) / np.nansum(EM_flat[subset])
+        centroid_change[i] = np.sqrt(centroid_x[i]**2 + centroid_y[i]**2)
+
+    avg_centroid_dist = np.nanmean(centroid_change)
+    centroid_shift = np.sqrt(np.sum((centroid_change - avg_centroid_dist)**2)/(N_ap-1))
+    #centroid_x & centroid_y needed for image                                                                                                                
+    #centroid_shift Mpc                                                                                                                                      
+    return centroid_shift, centroid_x, centroid_y
+
+def concentration(maps):
+    #map x,y radial locations onto Xray map                                                                                                                  
+    m= 10**maps
+    X,Y = np.meshgrid(np.arange(0,512,1),np.arange(0,512,1))
+    center = (256,256)
+    radius = 256
+    dist_from_center = np.sqrt((X - center[0])**2 + (Y-center[1])**2)
+
+    full_mask = dist_from_center <= radius
+    part_mask = dist_from_center <= radius*0.15
+
+    Lx = np.sum(m[full_mask])
+    Lx_small = np.sum(m[part_mask])
+
+    return Lx_small/Lx

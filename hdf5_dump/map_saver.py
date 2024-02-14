@@ -50,9 +50,9 @@ group_path = "/cosma8/data/dp004/flamingo/Runs/"
 run = "HYDRO_FIDUCIAL"
 catalogue = "/SOAP"
 size = 'L1000N'
-res = '3600'
-outputPath="/cosma8/data/dp004/dc-corr2/magnitude_gap/saved_data/L1000N/3600/"
-outputFile=outputPath+'Xray_maps_z0_R500c.hdf5'
+res = '1800'
+outputPath="/cosma8/data/dp004/dc-corr2/magnitude_gap/saved_data/" + size + "/" + res + "/" 
+outputFile=outputPath+'Xray_maps_z0.5_R500c.hdf5'
 
 
 def save_hdf5_map(map_list, cc, halo_ids):
@@ -94,10 +94,11 @@ if __name__ == "__main__":
     #method = str(input('use MPI or multithreads (mthreads)? '))
     
     method = 'MPI'
-    z = 0
+    z = 0.5
     catalogue_path, snapshot_path = paths(res, z, group_path, catalogue, run, size, mass='200m',type_='mag', return_ds = False)
     cc = cat.catalogue(catalogue_path, apert='50')
-    filename = 'm8_mag_200m_z' + str(z) + '_1e13_50kpc.h5'
+    filename = 'm9_mag_200m_z' + str(z) + '_1e14_50kpc.h5'
+
     #import pdb; pdb.set_trace()
     path = ("/cosma8/data/dp004/dc-corr2/magnitude_gap/saved_data/" + size + '/' + res + "/" + filename)
     h5file = h5.File(path, 'r')
@@ -147,20 +148,3 @@ if __name__ == "__main__":
 
         f.close()
 
-        '''
-        
-        pbar = yt.get_pbar('Fetching map data', len(halo_ids))
-        storage = {}
-
-        for my_storage, i in yt.parallel_objects(range(len(halo_ids[:15000])), storage=storage, dynamic=False):
-            pbar.update(i)
-            _id = halo_ids[i]
-            map_,_,_,_ = maps(int(_id-1), cc.CoP, cc.R500c, snapshot_path, z, 9)
-            my_storage.result_id = float(_id)
-            my_storage.result = map_
-
-        if yt.is_root():
-            save_hdf5_map(list(storage.values()), cc, list(storage.keys()))
-                         
-        
-        '''
